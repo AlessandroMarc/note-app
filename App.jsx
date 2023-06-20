@@ -2,7 +2,9 @@ import React from "react"
 import Sidebar from "./components/Sidebar"
 import Editor from "./components/Editor"
 import Split from "react-split"
-import { nanoid } from "nanoid"
+// import { nanoid } from "nanoid" - Firebase can take care of this with its own ids
+import { onSnapshot } from "firebase/firestore"
+import { notesCollection } from "./firebase"
 
 export default function App() {
     const [notes, setNotes] = React.useState(
@@ -11,22 +13,30 @@ export default function App() {
     const [currentNoteId, setCurrentNoteId] = React.useState(
         (notes[0]?.id) || ""
     )
-    
-    const currentNote = 
-        notes.find(note => note.id === currentNoteId) 
+
+    const currentNote =
+        notes.find(note => note.id === currentNoteId)
         || notes[0]
 
     React.useEffect(() => {
-        localStorage.setItem("notes", JSON.stringify(notes))
+        const unsubscribe = onSnapshot(notesCollection, function (snapshot) {
+            // Sync up our local notes array with snapshot data
+            console.log("Things are changing!")
+            const notesArr = snapshot.docs.map(doc => ({
+                ...doc.data(),
+                id: doc.id
+            }))
+            setNotes(notesArr)
+        })
+        return unsubscribe;
     }, [notes])
 
-    function createNewNote() {
+    async function createNewNote() {
         const newNote = {
-            id: nanoid(),
             body: "# Type your markdown note's title here"
         }
-        setNotes(prevNotes => [newNote, ...prevNotes])
-        setCurrentNoteId(newNote.id)
+        const newNoteRef = await addDoc(notesCollection, newNote)
+        setCurrentNoteId(newNoteRef.id)
     }
 
     function updateNote(text) {
@@ -45,9 +55,8 @@ export default function App() {
         })
     }
 
-    function deleteNote(event, noteId) {
-        event.stopPropagation()
-        setNotes(oldNotes => oldNotes.filter(note => note.id !== noteId))
+    function deleteNote(noteId) {
+
     }
 
     return (
@@ -84,7 +93,7 @@ export default function App() {
                             onClick={createNewNote}
                         >
                             Create one now
-                </button>
+                        </button>
                     </div>
 
             }
